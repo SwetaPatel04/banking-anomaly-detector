@@ -1,0 +1,555 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <!-- Basic page setup and mobile responsiveness -->
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
+  <title>Banking Anomaly Detector</title>
+
+  <!-- Google Fonts — Syne for headings, DM Mono for data/numbers -->
+  <link href="https://fonts.googleapis.com/css2?family=Syne:wght@400;600;800&family=DM+Mono:wght@400;500&display=swap" rel="stylesheet"/>
+
+  <style>
+    /* ── CSS Variables — central place to control all colours and fonts ── */
+    :root {
+      --bg:        #0a0f1e;   /* deep navy background */
+      --panel:     #111827;   /* slightly lighter card background */
+      --border:    #1e2d45;   /* subtle border colour */
+      --accent:    #00d4ff;   /* electric cyan — main brand colour */
+      --danger:    #ff4d6d;   /* red for high risk / anomaly */
+      --warning:   #ffb703;   /* amber for medium risk */
+      --safe:      #06d6a0;   /* green for low risk / normal */
+      --text:      #e2e8f0;   /* main text colour */
+      --muted:     #64748b;   /* secondary/label text */
+      --font-head: 'Syne', sans-serif;
+      --font-mono: 'DM Mono', monospace;
+    }
+
+    /* ── Reset and base styles ── */
+    * { margin: 0; padding: 0; box-sizing: border-box; }
+
+    body {
+      background: var(--bg);
+      color: var(--text);
+      font-family: var(--font-mono);
+      min-height: 100vh;
+      /* subtle grid pattern in the background for depth */
+      background-image:
+        linear-gradient(rgba(0,212,255,0.03) 1px, transparent 1px),
+        linear-gradient(90deg, rgba(0,212,255,0.03) 1px, transparent 1px);
+      background-size: 40px 40px;
+    }
+
+    /* ── Top navigation bar ── */
+    nav {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      padding: 1.2rem 2.5rem;
+      border-bottom: 1px solid var(--border);
+      background: rgba(10,15,30,0.9);
+      /* sticky so it stays at top when scrolling */
+      position: sticky; top: 0; z-index: 100;
+      backdrop-filter: blur(10px);
+    }
+
+    /* Bank logo / title in the nav */
+    .nav-brand {
+      font-family: var(--font-head);
+      font-size: 1.1rem;
+      font-weight: 800;
+      color: var(--accent);
+      letter-spacing: 0.05em;
+    }
+
+    /* Small green "live" indicator dot in the nav */
+    .nav-status {
+      display: flex;
+      align-items: center;
+      gap: 0.5rem;
+      font-size: 0.75rem;
+      color: var(--safe);
+    }
+
+    /* Animated pulsing dot to show the API is live */
+    .dot {
+      width: 8px; height: 8px;
+      border-radius: 50%;
+      background: var(--safe);
+      animation: pulse 2s infinite;
+    }
+
+    @keyframes pulse {
+      0%, 100% { opacity: 1; transform: scale(1); }
+      50%       { opacity: 0.4; transform: scale(1.3); }
+    }
+
+    /* ── Main page layout ── */
+    main {
+      max-width: 960px;
+      margin: 0 auto;
+      padding: 3rem 1.5rem;
+    }
+
+    /* ── Page header section ── */
+    .hero { text-align: center; margin-bottom: 3rem; }
+
+    .hero h1 {
+      font-family: var(--font-head);
+      font-size: clamp(1.8rem, 4vw, 2.8rem); /* responsive font size */
+      font-weight: 800;
+      line-height: 1.1;
+      /* gradient text effect */
+      background: linear-gradient(135deg, #fff 30%, var(--accent));
+      -webkit-background-clip: text;
+      -webkit-text-fill-color: transparent;
+      background-clip: text;
+      margin-bottom: 0.75rem;
+    }
+
+    .hero p {
+      color: var(--muted);
+      font-size: 0.9rem;
+      max-width: 480px;
+      margin: 0 auto;
+      line-height: 1.6;
+    }
+
+    /* ── Card / panel component ── */
+    .card {
+      background: var(--panel);
+      border: 1px solid var(--border);
+      border-radius: 12px;
+      padding: 2rem;
+      margin-bottom: 1.5rem;
+      /* fade-in animation when page loads */
+      animation: fadeUp 0.5s ease both;
+    }
+
+    @keyframes fadeUp {
+      from { opacity: 0; transform: translateY(16px); }
+      to   { opacity: 1; transform: translateY(0); }
+    }
+
+    /* Stagger card animations so they appear one after another */
+    .card:nth-child(1) { animation-delay: 0.1s; }
+    .card:nth-child(2) { animation-delay: 0.2s; }
+    .card:nth-child(3) { animation-delay: 0.3s; }
+
+    /* ── Section titles inside cards ── */
+    .card-title {
+      font-family: var(--font-head);
+      font-size: 0.75rem;
+      font-weight: 600;
+      letter-spacing: 0.12em;
+      text-transform: uppercase;
+      color: var(--accent);
+      margin-bottom: 1.5rem;
+    }
+
+    /* ── Form layout — two columns on wide screens ── */
+    .form-grid {
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      gap: 1.2rem;
+      margin-bottom: 1.5rem;
+    }
+
+    /* Stack to one column on narrow screens */
+    @media (max-width: 600px) {
+      .form-grid { grid-template-columns: 1fr; }
+    }
+
+    /* ── Individual form field group ── */
+    .field { display: flex; flex-direction: column; gap: 0.4rem; }
+
+    /* Field label styling */
+    .field label {
+      font-size: 0.72rem;
+      letter-spacing: 0.08em;
+      text-transform: uppercase;
+      color: var(--muted);
+    }
+
+    /* Input field styling */
+    .field input, .field select {
+      background: var(--bg);
+      border: 1px solid var(--border);
+      border-radius: 6px;
+      padding: 0.65rem 0.9rem;
+      color: var(--text);
+      font-family: var(--font-mono);
+      font-size: 0.9rem;
+      transition: border-color 0.2s;
+      /* remove default browser outline */
+      outline: none;
+    }
+
+    /* Highlight input border when focused */
+    .field input:focus, .field select:focus {
+      border-color: var(--accent);
+    }
+
+    /* ── Analyse button ── */
+    button {
+      width: 100%;
+      padding: 0.85rem;
+      background: var(--accent);
+      color: #0a0f1e;
+      border: none;
+      border-radius: 8px;
+      font-family: var(--font-head);
+      font-size: 0.95rem;
+      font-weight: 700;
+      letter-spacing: 0.05em;
+      cursor: pointer;
+      transition: opacity 0.2s, transform 0.1s;
+    }
+
+    /* Slightly dim and scale down when hovered */
+    button:hover  { opacity: 0.88; transform: translateY(-1px); }
+    /* Press effect when clicked */
+    button:active { transform: translateY(0); }
+
+    /* Disabled state while API call is loading */
+    button:disabled { opacity: 0.5; cursor: not-allowed; }
+
+    /* ── Result display section ── */
+    .result {
+      display: none; /* hidden until we get a response */
+      margin-top: 1.5rem;
+      border-radius: 10px;
+      padding: 1.5rem;
+      border: 1px solid var(--border);
+      /* slide down animation */
+      animation: fadeUp 0.3s ease both;
+    }
+
+    /* Colour the result panel based on risk level */
+    .result.high    { border-color: var(--danger);  background: rgba(255,77,109,0.07); }
+    .result.medium  { border-color: var(--warning); background: rgba(255,183,3,0.07); }
+    .result.low     { border-color: var(--safe);    background: rgba(6,214,160,0.07); }
+
+    /* Row layout for result label + value pairs */
+    .result-row {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      padding: 0.5rem 0;
+      border-bottom: 1px solid var(--border);
+      font-size: 0.88rem;
+    }
+
+    /* Remove border from last row */
+    .result-row:last-child { border-bottom: none; }
+
+    /* Left side label */
+    .result-label { color: var(--muted); }
+
+    /* Right side value — bold */
+    .result-value { font-weight: 500; }
+
+    /* Risk badge pill */
+    .badge {
+      padding: 0.25rem 0.8rem;
+      border-radius: 99px;
+      font-size: 0.78rem;
+      font-weight: 700;
+      letter-spacing: 0.08em;
+    }
+
+    .badge.HIGH   { background: rgba(255,77,109,0.2);  color: var(--danger); }
+    .badge.MEDIUM { background: rgba(255,183,3,0.2);   color: var(--warning); }
+    .badge.LOW    { background: rgba(6,214,160,0.2);   color: var(--safe); }
+
+    /* ── Stats bar at the top showing counts ── */
+    .stats {
+      display: grid;
+      grid-template-columns: repeat(3, 1fr);
+      gap: 1rem;
+      margin-bottom: 2rem;
+    }
+
+    .stat-card {
+      background: var(--panel);
+      border: 1px solid var(--border);
+      border-radius: 10px;
+      padding: 1.2rem;
+      text-align: center;
+      animation: fadeUp 0.4s ease both;
+    }
+
+    /* Large number in stat card */
+    .stat-number {
+      font-family: var(--font-head);
+      font-size: 1.8rem;
+      font-weight: 800;
+      color: var(--accent);
+    }
+
+    /* Label under the number */
+    .stat-label {
+      font-size: 0.7rem;
+      color: var(--muted);
+      text-transform: uppercase;
+      letter-spacing: 0.1em;
+      margin-top: 0.25rem;
+    }
+
+    /* ── Recent checks log list ── */
+    .log-list {
+      list-style: none;
+      display: flex;
+      flex-direction: column;
+      gap: 0.6rem;
+      max-height: 260px;
+      overflow-y: auto; /* scroll if list gets long */
+    }
+
+    /* Individual log entry row */
+    .log-item {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      padding: 0.65rem 0.9rem;
+      background: var(--bg);
+      border-radius: 6px;
+      font-size: 0.82rem;
+      border-left: 3px solid transparent;
+      animation: fadeUp 0.2s ease both;
+    }
+
+    /* Colour left border based on risk */
+    .log-item.HIGH   { border-left-color: var(--danger); }
+    .log-item.MEDIUM { border-left-color: var(--warning); }
+    .log-item.LOW    { border-left-color: var(--safe); }
+
+    /* Empty state message when no checks yet */
+    .empty {
+      text-align: center;
+      color: var(--muted);
+      font-size: 0.82rem;
+      padding: 1.5rem;
+    }
+  </style>
+</head>
+
+<body>
+
+  <!-- ── Navigation Bar ── -->
+  <nav>
+    <span class="nav-brand">⬡ TD ANOMALY DETECTOR</span>
+    <span class="nav-status">
+      <span class="dot"></span>
+      API LIVE — localhost:5000
+    </span>
+  </nav>
+
+  <!-- ── Main Content ── -->
+  <main>
+
+    <!-- Page heading -->
+    <div class="hero">
+      <h1>Transaction Risk Analysis</h1>
+      <p>ML-powered fraud detection using Random Forest classification. Enter transaction details to assess anomaly risk in real time.</p>
+    </div>
+
+    <!-- ── Stats Row ── -->
+    <div class="stats">
+      <!-- Total number of transactions checked this session -->
+      <div class="stat-card">
+        <div class="stat-number" id="totalCount">0</div>
+        <div class="stat-label">Transactions Checked</div>
+      </div>
+      <!-- Number flagged as anomalies -->
+      <div class="stat-card">
+        <div class="stat-number" id="anomalyCount" style="color: var(--danger)">0</div>
+        <div class="stat-label">Anomalies Detected</div>
+      </div>
+      <!-- Number cleared as normal -->
+      <div class="stat-card">
+        <div class="stat-number" id="clearCount" style="color: var(--safe)">0</div>
+        <div class="stat-label">Cleared</div>
+      </div>
+    </div>
+
+    <!-- ── Input Form Card ── -->
+    <div class="card">
+      <div class="card-title">▸ Transaction Details</div>
+
+      <div class="form-grid">
+
+        <!-- Amount field -->
+        <div class="field">
+          <label>Amount (CAD $)</label>
+          <input type="number" id="amount" placeholder="e.g. 45.50" min="0" step="0.01"/>
+        </div>
+
+        <!-- Hour field -->
+        <div class="field">
+          <label>Hour of Day (0–23)</label>
+          <input type="number" id="hour" placeholder="e.g. 14" min="0" max="23"/>
+        </div>
+
+        <!-- Merchant known dropdown -->
+        <div class="field">
+          <label>Merchant Type</label>
+          <select id="merchant_known">
+            <option value="1">Known Merchant</option>
+            <option value="0">Unknown / Suspicious Merchant</option>
+          </select>
+        </div>
+
+        <!-- Weekend dropdown -->
+        <div class="field">
+          <label>Day Type</label>
+          <select id="is_weekend">
+            <option value="0">Weekday</option>
+            <option value="1">Weekend</option>
+          </select>
+        </div>
+
+      </div>
+
+      <!-- Submit button -->
+      <button id="analyseBtn" onclick="analyseTransaction()">
+        Analyse Transaction
+      </button>
+
+      <!-- Result panel — hidden until API responds -->
+      <div class="result" id="result">
+        <div class="result-row">
+          <span class="result-label">Anomaly Detected</span>
+          <span class="result-value" id="res-anomaly"></span>
+        </div>
+        <div class="result-row">
+          <span class="result-label">Confidence Score</span>
+          <span class="result-value" id="res-confidence"></span>
+        </div>
+        <div class="result-row">
+          <span class="result-label">Risk Level</span>
+          <span class="result-value" id="res-risk"></span>
+        </div>
+      </div>
+    </div>
+
+    <!-- ── Recent Checks Log Card ── -->
+    <div class="card">
+      <div class="card-title">▸ Recent Checks</div>
+      <ul class="log-list" id="logList">
+        <!-- Empty state shown before any checks are made -->
+        <li class="empty" id="emptyMsg">No transactions checked yet.</li>
+      </ul>
+    </div>
+
+  </main>
+
+  <script>
+    // Track session statistics
+    let totalCount   = 0;
+    let anomalyCount = 0;
+    let clearCount   = 0;
+
+    // Main function called when the Analyse button is clicked
+    async function analyseTransaction() {
+      // Get all input values from the form
+      const amount          = document.getElementById("amount").value;
+      const hour            = document.getElementById("hour").value;
+      const merchant_known  = document.getElementById("merchant_known").value;
+      const is_weekend      = document.getElementById("is_weekend").value;
+
+      // Basic validation — make sure amount and hour are filled in
+      if (!amount || hour === "") {
+        alert("Please fill in Amount and Hour fields.");
+        return;
+      }
+
+      // Get references to the button and result panel
+      const btn    = document.getElementById("analyseBtn");
+      const result = document.getElementById("result");
+
+      // Disable button and show loading state while waiting for API
+      btn.disabled     = true;
+      btn.textContent  = "Analysing...";
+
+      // Send POST request to our Flask API
+      try {
+        const response = await fetch("http://localhost:5000/predict", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({
+            amount:         parseFloat(amount),
+            hour:           parseInt(hour),
+            merchant_known: parseInt(merchant_known),
+            is_weekend:     parseInt(is_weekend)
+          })
+        });
+
+        // Parse the JSON response from the API
+        const data = await response.json();
+
+        // Update the result panel with the API response
+        document.getElementById("res-anomaly").textContent =
+          data.is_anomaly ? "⚠ YES — Suspicious" : "✓ No — Normal";
+
+        document.getElementById("res-confidence").textContent =
+          (data.confidence * 100).toFixed(1) + "%";
+
+        // Create the risk badge element
+        document.getElementById("res-risk").innerHTML =
+          `<span class="badge ${data.risk_level}">${data.risk_level}</span>`;
+
+        // Show the result panel and colour it based on risk level
+        result.style.display = "block";
+        result.className = "result " + data.risk_level.toLowerCase();
+
+        // Update session stats
+        totalCount++;
+        if (data.is_anomaly) { anomalyCount++; } else { clearCount++; }
+
+        // Update the stat numbers on screen
+        document.getElementById("totalCount").textContent   = totalCount;
+        document.getElementById("anomalyCount").textContent = anomalyCount;
+        document.getElementById("clearCount").textContent   = clearCount;
+
+        // Add this check to the recent log
+        addToLog(amount, data.risk_level, data.is_anomaly);
+
+      } catch (err) {
+        // Show error if the API is not running
+        alert("Could not reach API. Make sure Flask is running on localhost:5000");
+        console.error(err);
+      }
+
+      // Re-enable the button after the request completes
+      btn.disabled    = false;
+      btn.textContent = "Analyse Transaction";
+    }
+
+    // Adds a new entry to the Recent Checks log list
+    function addToLog(amount, riskLevel, isAnomaly) {
+      // Hide the empty state message once we have entries
+      document.getElementById("emptyMsg").style.display = "none";
+
+      const list = document.getElementById("logList");
+
+      // Create a new list item
+      const li = document.createElement("li");
+      li.className = `log-item ${riskLevel}`;
+
+      // Get current time for the log timestamp
+      const time = new Date().toLocaleTimeString();
+
+      // Set the content of the log entry
+      li.innerHTML = `
+        <span>$${parseFloat(amount).toFixed(2)} — ${isAnomaly ? "⚠ Anomaly" : "✓ Normal"}</span>
+        <span style="color: var(--muted); font-size: 0.75rem;">${time}</span>
+      `;
+
+      // Insert at the top of the list so newest is first
+      list.insertBefore(li, list.firstChild);
+    }
+  </script>
+
+</body>
+</html>
